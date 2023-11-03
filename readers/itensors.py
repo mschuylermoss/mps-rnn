@@ -16,9 +16,9 @@ from models.reorder import get_reorder_idx
 from models.tensor_rnn_cmpr_2d import get_Bp
 
 
-def get_M(filename, V, S, B, dtype):
+def get_M(filename, V, S, B, b, dtype):
     id_last = None
-    M = np.zeros((V, S, B, B), dtype=dtype)
+    M = np.zeros((V*b, S, B, B), dtype=dtype)
     with h5py.File(filename, "r") as f:
         for i in range(V):
             # Read flattened data
@@ -82,13 +82,21 @@ def get_M(filename, V, S, B, dtype):
             assert id_next is not None
             id_last = id_next
 
+            # here is where I will change where the matrices from MPS get put
             M[i, :, : m.shape[1], : m.shape[2]] = m
+
+            if b != 0:
+                for bi in range(1,b): # "stretching the lattice" to the right 
+                    M[i+bi, :, : m.shape[1], : m.shape[2]] = m
 
     return M
 
 
 def get_gamma_reorder(args, M):
-    V = args.L**args.ham_dim
+    if args.b != 0:
+        V = args.L **args.ham_dim * args.b
+    else:
+        V = args.L**args.ham_dim
     B = args.bond_dim
 
     right_boundary = jnp.ones((B,), dtype=args.dtype)
@@ -214,14 +222,19 @@ def get_variables_itensors(model: MPS, args, M, key, eps):  # noqa: F811
 
 @dispatch
 def get_variables_itensors(model: MPSRNN1D, args, M, key, eps):  # noqa: F811
-    V = args.L**args.ham_dim
+    if args.b != 0:
+        V = args.L**args.ham_dim * args.b
+    else:
+        v = args.L**args.ham_dim
     S = 2
     B = args.bond_dim
 
     gamma, reorder_idx, inv_reorder_idx = get_gamma_reorder(args, M)
     M, log_gamma = get_log_gamma(M, gamma)
+
     M = M[inv_reorder_idx]
     log_gamma = log_gamma[inv_reorder_idx]
+    
 
     params = {"M": M, "log_gamma": log_gamma}
     if args.affine:
@@ -358,10 +371,12 @@ def try_load_itensors(filename, model, args, eps=1e-7):
         return None
 
     V = args.L**args.ham_dim
+    b = args.b # growth factor
     S = 2
     B = args.bond_dim
 
-    M = get_M(filename, V, S, B, args.dtype)
+    M = get_M(filename, V, S, B, b, args.dtype)
+    # print(M)
     M = jnp.asarray(M)
 
     key, key_M = jax.random.split(PRNGKey(args.seed))

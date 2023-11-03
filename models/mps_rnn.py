@@ -10,6 +10,9 @@ from .mps import MPS, _update_h_p_single
 
 
 class MPSRNN1D(MPS):
+    def _nonlin_fxn(self,preact):
+        return 1/(1+jnp.exp(-preact))
+
     def _get_gamma(self):
         raise NotImplementedError
 
@@ -22,7 +25,7 @@ class MPSRNN1D(MPS):
 
         M_init = normal(stddev=1 / sqrt(B))
         self.M = self.param("M", M_init, (L, S, B, B), self.dtype)
-
+        
         if self.affine:
             v_init = normal(stddev=1)
             self.v = self.param("v", v_init, (L, S, B), self.dtype)
@@ -42,6 +45,35 @@ class MPSRNN1D(MPS):
     def _init_dependent_cache(self, _):
         pass
 
+@dispatch
+def _get_new_h(model: MPSRNN1D, h, i):
+    h = jnp.einsum("a,iab->ib", h, model.M[i])
+    if model.affine:
+        h += model.v[i]
+    if model.nonlin:
+        if model.skip_conn:
+            return h + model._nonlin_fxn(h)
+        else:
+            return model._nonlin_fxn(h)
+    else:
+        return h
+
+# @dispatch
+# def _get_new_h(model: MPSRNN1D, h, i):
+#     h = jnp.einsum("a,iab->ib", h, model.M[i])
+#     if model.affine:
+#         h += model.v[i]
+#     if model.nonlin:
+#         if model.prog > 0.0:
+#             assert model.prog < 1.0001
+#             return (1. - model.prog) * h + model.prog * model._nonlin_fxn(h)
+#         else: 
+#             if model.skip_conn:
+#                 return h + model._nonlin_fxn(h)
+#             else:
+#                 return model._nonlin_fxn(h)
+#     else:
+#         return h
 
 @dispatch
 def _get_p(model: MPSRNN1D, h, i):
@@ -75,7 +107,7 @@ def _call_single(model: MPSRNN1D, inputs):
     if model.no_phase:
         log_psi = jnp.zeros((), dtype=dtype_real(model.dtype))
     else:
-        log_psi = jnp.zeros((), dtype=dtype_complex(model.dtype))
+        log_psi = jnp.zeros((), dtype=jnp.complex128)
     counts = jnp.zeros((S,), dtype=jnp.int32)
 
     (h, log_psi, _), _ = lax.scan(scan_func, (h, log_psi, counts), model.reorder_idx)

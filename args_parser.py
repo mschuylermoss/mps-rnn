@@ -153,6 +153,11 @@ def get_parser():
 
     group = parser.add_argument_group("optimizer parameters")
     group.add_argument(
+        "--local",
+        action="store_true",
+        help="use the local VMC driver instead of the netket version",
+    )
+    group.add_argument(
         "--seed",
         type=int,
         default=0,

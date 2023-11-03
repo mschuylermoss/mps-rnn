@@ -15,6 +15,8 @@ from args import args
 from ham import HeisenbergTriangular, Triangular
 from models import MPS, MPSRNN1D, MPSRNN2D, TensorRNN2D, TensorRNNCmpr2D
 from models.symmetry import symmetrize_spins
+from driver import VMC_local
+# from vqs import MCState_local
 from readers import (
     convert_variables,
     try_load_enlarge,
@@ -41,7 +43,10 @@ def get_ham(*, _args=None):
             assert _args.L % 2 == 0
         graph = Triangular(_args.L, pbc)
     else:
-        graph = nk.graph.Hypercube(length=_args.L, n_dim=_args.ham_dim, pbc=pbc)
+        if (_args.b != 0) & (_args.ham_dim == 1):
+            graph = nk.graph.Hypercube(length=_args.L*_args.b, n_dim=_args.ham_dim, pbc=pbc)
+        else:
+            graph = nk.graph.Hypercube(length=_args.L, n_dim=_args.ham_dim, pbc=pbc)
 
     hilbert = nk.hilbert.Spin(s=1 / 2, N=graph.n_nodes)
 
@@ -84,6 +89,8 @@ def get_net(hilbert, *, _args=None):
         zero_mag=_args.zero_mag,
         refl_sym=_args.refl_sym,
         affine=_args.affine,
+        nonlin=_args.nonlin,
+        skip_conn = args.skip_conn,
         no_phase=_args.no_phase,
         no_w_phase=_args.no_w_phase,
         cond_psi=_args.cond_psi,
@@ -133,14 +140,24 @@ def get_vstate(sampler, model, variables, *, _args=None, n_samples=None):
     if not n_samples:
         n_samples = _args.batch_size
 
-    return nk.vqs.MCState(
+    if _args.local:
+        return MCState_local(
         sampler,
         model,
         n_samples=n_samples,
         chunk_size=_args.chunk_size,
         variables=variables,
         seed=_args.seed,
-    )
+        )    
+    else:
+        return nk.vqs.MCState(
+            sampler,
+            model,
+            n_samples=n_samples,
+            chunk_size=_args.chunk_size,
+            variables=variables,
+            seed=_args.seed,
+        )
 
 
 def get_optimizer(*, _args=None):
@@ -211,7 +228,7 @@ def get_vmc(H, vstate, optimizer, preconditioner, *, _args=None):
     if not _args:
         _args = args
 
-    if _args.optimizer.startswith("rk"):
+    if _args.optimizer.startswith("rk"): # seems like this is for dynamics or SR ??
         assert preconditioner is None
 
         from netket import experimental as nkx
@@ -227,12 +244,21 @@ def get_vmc(H, vstate, optimizer, preconditioner, *, _args=None):
             error_norm="qgt",
         )
     else:
-        vmc = nk.VMC(
+        if _args.local: 
+            print("Using local VMC driver.")
+            vmc = VMC_local(
             H,
             variational_state=vstate,
             optimizer=optimizer,
             preconditioner=preconditioner,
-        )
+            )
+        else:
+            vmc = nk.VMC(
+                H,
+                variational_state=vstate,
+                optimizer=optimizer,
+                preconditioner=preconditioner,
+            )
 
     logger = nk.logging.JsonLog(
         _args.log_filename,
@@ -241,7 +267,14 @@ def get_vmc(H, vstate, optimizer, preconditioner, *, _args=None):
         write_every=_args.max_step // 100,
     )
 
-    return vmc, logger
+    logger_init = nk.logging.JsonLog(
+        _args.log_filename+'_init',
+        "w",
+        save_params_every= 1,
+        write_every= 1,
+    )
+
+    return vmc, logger, logger_init
 
 
 def try_load_variables_init(model, *, _args=None):
@@ -256,14 +289,16 @@ def try_load_variables_init(model, *, _args=None):
     ]
 
     for basename, func in config:
+        print("trying: ",basename, func)
         filename = _args.full_out_dir + basename
         if func == try_load_variables:
             variables = func(filename)
         else:
             variables = func(filename, model, _args)
         if variables is not None:
-            print(f"Found {filename}")
+            print(f"Found {filename} and used {func}")
             variables = convert_variables(variables, _args)
+            # print(variables)
             return variables
 
     print(f"Variables not found in {_args.full_out_dir}")
@@ -301,13 +336,15 @@ def main():
     variables = try_load_variables_init(model)
     sampler = get_sampler(hilbert)
     vstate = get_vstate(sampler, model, variables)
-    print("n_params", tree_size_real_nonzero(vstate.parameters))
+    # print("n_params", tree_size_real_nonzero(vstate.parameters))
+    print("n_params",vstate.n_parameters)
 
     optimizer, preconditioner = get_optimizer()
-    vmc, logger = get_vmc(H, vstate, optimizer, preconditioner)
+    vmc, logger, logger_init = get_vmc(H, vstate, optimizer, preconditioner)
 
     print("start_time", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
     start_time = time.time()
+
     if args.optimizer.startswith("rk"):
         t_max = args.lr * args.max_step
         vmc.run(
@@ -317,7 +354,9 @@ def main():
             show_progress=args.show_progress,
         )
     else:
+        vmc.run(n_iter=0, out=logger_init, show_progress=True)
         vmc.run(n_iter=args.max_step, out=logger, show_progress=args.show_progress)
+    
     used_time = time.time() - start_time
     print("used_time", used_time)
 

@@ -70,6 +70,9 @@ class MPS(AbstractARNN):
     zero_mag: bool
     refl_sym: bool
     affine: bool
+    nonlin: bool
+    # prog: float
+    skip_conn: bool
     no_phase: bool
     no_w_phase: bool
     cond_psi: bool
@@ -133,7 +136,7 @@ class MPS(AbstractARNN):
             inputs = jnp.expand_dims(inputs, axis=0)
         return inputs
 
-    def _conditional(self, inputs, index):
+    def _conditionals(self, inputs, index):
         inputs = self._preprocess_dim(inputs)
         p, self.h.value, self.counts.value = _update_h_p(
             self, inputs, index, self.h.value, self.counts.value
@@ -159,6 +162,7 @@ class MPS(AbstractARNN):
         return inv_reorder(self, inputs)
 
 
+@dispatch
 def _get_new_h(model, h, i):
     h = jnp.einsum("a,iab->ib", h, model.M[i])
     if model.affine:
