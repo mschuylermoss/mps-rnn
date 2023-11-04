@@ -35,7 +35,7 @@ from .abstract_variational_driver import AbstractVariationalDriver
 
 import sys
 sys.path.append("..")
-from vqs.mc.MCstate import MCState_local
+# from vqs.mc.MCstate import MCState_local
 
 class VMC_local(AbstractVariationalDriver):
     """

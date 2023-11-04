@@ -2,8 +2,8 @@ h5py==3.9.0
 
 chex==0.1.6
 flax==0.6.4
-jax==0.3.25
-jaxlib==0.3.25
+jax==0.4.9
+jaxlib==0.4.7
 jaxtyping==0.2.18
 optax==0.1.7
 orbax==0.1.2
