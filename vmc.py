@@ -284,7 +284,7 @@ def try_load_variables_init(model, *, _args=None):
         ("init.mpack", try_load_variables),
         ("init_rd.mpack", try_load_hierarchical),
         ("init_el.mpack", try_load_enlarge),
-        ("./../../init.hdf5", try_load_itensors),
+        ("init.hdf5", try_load_itensors),
     ]
 
     for basename, func in config:
@@ -301,8 +301,13 @@ def try_load_variables_init(model, *, _args=None):
                 print("Using full-size DMRG MPS")
                 filename = _args.full_out_dir+"./../../init.hdf5"
                 variables = func(filename, model, _args)
+            # elif ("from_1D" in _args.full_out_dir):
+            #     print("Getting previous model")
+            #     filename = _args.full_out_dir+"./../../mps_rnn_1d_af_cp/out.mpack"
+            #     variables = try_load_hierarchical(filename,model,_args)
             else:
                 variables = func(filename,model,_args)
+
         if variables is not None:
             print(f"Found {filename} and used {func}")
             variables = convert_variables(variables, _args)
