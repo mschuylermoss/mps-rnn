@@ -28,7 +28,7 @@ def add_v_c_phase_2d(params, args, params_old, reorder_idx):
         return
 
     L = args.L
-    B = args.kernel_size
+    B = args.bond_dim
 
     if args.cond_psi:
         if "w_phase" in params_old:
@@ -113,7 +113,7 @@ def get_variables_hierarchical(  # noqa: F811
     L = args.L
     V = L**args.ham_dim
     S = 2
-    B = args.kernel_size
+    B = args.bond_dim
 
     reorder_idx, _ = get_reorder_idx(args.reorder_type, args.reorder_dim, V)
 

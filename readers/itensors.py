@@ -10,15 +10,15 @@ from netket.jax.utils import dtype_real
 from plum import dispatch
 from scipy.linalg import eigh
 
-from models import MPS, MPSRNN1D, MPSRNN2D, TensorRNN2D, TensorRNNCmpr2D
+from models import MPS, MPSRNN1D, MPSRNN1D_local, MPSRNN2D, TensorRNN2D, TensorRNNCmpr2D
 from models.mps import get_gamma
 from models.reorder import get_reorder_idx
 from models.tensor_rnn_cmpr_2d import get_Bp
 
 
-def get_M(filename, V, S, B, b, dtype):
+def get_M(filename, V, S, B, dtype):
     id_last = None
-    M = np.zeros((V*b, S, B, B), dtype=dtype)
+    M = np.zeros((V, S, B, B), dtype=dtype)
     with h5py.File(filename, "r") as f:
         for i in range(V):
             # Read flattened data
@@ -85,18 +85,11 @@ def get_M(filename, V, S, B, b, dtype):
             # here is where I will change where the matrices from MPS get put
             M[i, :, : m.shape[1], : m.shape[2]] = m
 
-            if b != 0:
-                for bi in range(1,b): # "stretching the lattice" to the right 
-                    M[i+bi, :, : m.shape[1], : m.shape[2]] = m
-
     return M
 
 
 def get_gamma_reorder(args, M):
-    if args.b != 0:
-        V = args.L **args.ham_dim * args.b
-    else:
-        V = args.L**args.ham_dim
+    V = args.L**args.ham_dim
     B = args.bond_dim
 
     right_boundary = jnp.ones((B,), dtype=args.dtype)
@@ -222,10 +215,7 @@ def get_variables_itensors(model: MPS, args, M, key, eps):  # noqa: F811
 
 @dispatch
 def get_variables_itensors(model: MPSRNN1D, args, M, key, eps):  # noqa: F811
-    if args.b != 0:
-        V = args.L**args.ham_dim * args.b
-    else:
-        v = args.L**args.ham_dim
+    V = args.L**args.ham_dim
     S = 2
     B = args.bond_dim
 
@@ -245,6 +235,27 @@ def get_variables_itensors(model: MPSRNN1D, args, M, key, eps):  # noqa: F811
     variables = {"params": params, "cache": {"h": None, "counts": None}}
     return variables
 
+@dispatch
+def get_variables_itensors(model: MPSRNN1D_local, args, M, key, eps):  # noqa: F811
+    V = args.L**args.ham_dim
+    S = 2
+    B = args.bond_dim
+
+    gamma, reorder_idx, inv_reorder_idx = get_gamma_reorder(args, M)
+    M, log_gamma = get_log_gamma(M, gamma)
+
+    M = M[inv_reorder_idx]
+    log_gamma = log_gamma[inv_reorder_idx]
+    
+
+    params = {"M": M, "log_gamma": log_gamma}
+    if args.affine:
+        params["v"] = jnp.zeros((V, S, B), dtype=args.dtype)
+
+    add_v_c_phase(params, args, reorder_idx)
+
+    variables = {"params": params, "cache": {"h": None, "counts": None}}
+    return variables
 
 def get_M_log_gamma_2d(args, M, key, eps):
     L = args.L
@@ -371,11 +382,10 @@ def try_load_itensors(filename, model, args, eps=1e-7):
         return None
 
     V = args.L**args.ham_dim
-    b = args.b # growth factor
     S = 2
     B = args.bond_dim
 
-    M = get_M(filename, V, S, B, b, args.dtype)
+    M = get_M(filename, V, S, B, args.dtype)
     # print(M)
     M = jnp.asarray(M)
 
