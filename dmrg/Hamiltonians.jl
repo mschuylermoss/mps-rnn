@@ -117,7 +117,11 @@ function get_hamiltonian_2d(which_Ham::String, Lx::Int, Ly::Int, lattice, sites)
         save_path = "../out/ising_fm_2d_L$(Lx)_h1"
     elseif which_Ham=="Heisenberg"
         H = get_afmheis_2d(+1.,lattice, sites)
-        save_path = "../out/heis_afm_2d_L$(Lx)"
+        if lattice == "Triangular"
+            save_path = "../out/heis_tri_afm_2d_L$(Lx)"
+        else
+            save_path = "../out/heis_afm_2d_L$(Lx)"
+        end
     else
         println(
             "Hamiltonian must be TFIM, or Heisenberg."
