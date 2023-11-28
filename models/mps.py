@@ -71,8 +71,6 @@ class MPS(AbstractARNN):
     refl_sym: bool
     affine: bool
     nonlin: bool
-    # prog: float
-    skip_conn: bool
     no_phase: bool
     no_w_phase: bool
     cond_psi: bool

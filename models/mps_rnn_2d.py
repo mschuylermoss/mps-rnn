@@ -36,6 +36,7 @@ class MPSRNN2D(AbstractARNN):
     zero_mag: bool
     refl_sym: bool
     affine: bool
+    nonlin: bool
     no_phase: bool
     no_w_phase: bool
     cond_psi: bool
@@ -326,7 +327,7 @@ def _call_single(model: MPSRNN2D, inputs):
     if model.no_phase:
         log_psi = jnp.zeros((), dtype=dtype_real(model.dtype))
     else:
-        log_psi = jnp.zeros((), dtype=dtype_complex(model.dtype))
+        log_psi = jnp.zeros((), dtype=jnp.complex128)
     counts = jnp.zeros((S,), dtype=jnp.int32)
 
     (h, _, log_psi, _), _ = lax.scan(

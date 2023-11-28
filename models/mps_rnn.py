@@ -10,9 +10,7 @@ from .mps import MPS, _update_h_p_single
 
 
 class MPSRNN1D(MPS):
-    def _nonlin_fxn(self,preact):
-        return 1/(1+jnp.exp(-preact))
-
+    
     def _get_gamma(self):
         raise NotImplementedError
 
@@ -50,30 +48,7 @@ def _get_new_h(model: MPSRNN1D, h, i):
     h = jnp.einsum("a,iab->ib", h, model.M[i])
     if model.affine:
         h += model.v[i]
-    if model.nonlin:
-        if model.skip_conn:
-            return h + model._nonlin_fxn(h)
-        else:
-            return model._nonlin_fxn(h)
-    else:
-        return h
-
-# @dispatch
-# def _get_new_h(model: MPSRNN1D, h, i):
-#     h = jnp.einsum("a,iab->ib", h, model.M[i])
-#     if model.affine:
-#         h += model.v[i]
-#     if model.nonlin:
-#         if model.prog > 0.0:
-#             assert model.prog < 1.0001
-#             return (1. - model.prog) * h + model.prog * model._nonlin_fxn(h)
-#         else: 
-#             if model.skip_conn:
-#                 return h + model._nonlin_fxn(h)
-#             else:
-#                 return model._nonlin_fxn(h)
-#     else:
-#         return h
+    return h
 
 @dispatch
 def _get_p(model: MPSRNN1D, h, i):
