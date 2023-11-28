@@ -13,10 +13,10 @@ from netket.optimizer.qgt import QGTOnTheFly
 
 from args import args
 from ham import HeisenbergTriangular, Triangular
-from models import MPS, MPSRNN1D, MPSRNN2D, TensorRNN2D, TensorRNNCmpr2D
+from models import MPS, MPSRNN1D, MPSRNN2D, TensorRNN2D, TensorRNNCmpr2D, MPSRNN1D_local
 from models.symmetry import symmetrize_spins
-from driver import VMC_local
-# from vqs import MCState_local
+from driver_local import VMC_local
+# from state_base_local import MCState
 from readers import (
     convert_variables,
     try_load_enlarge,
@@ -43,10 +43,7 @@ def get_ham(*, _args=None):
             assert _args.L % 2 == 0
         graph = Triangular(_args.L, pbc)
     else:
-        if (_args.b != 0) & (_args.ham_dim == 1):
-            graph = nk.graph.Hypercube(length=_args.L*_args.b, n_dim=_args.ham_dim, pbc=pbc)
-        else:
-            graph = nk.graph.Hypercube(length=_args.L, n_dim=_args.ham_dim, pbc=pbc)
+        graph = nk.graph.Hypercube(length=_args.L, n_dim=_args.ham_dim, pbc=pbc)
 
     hilbert = nk.hilbert.Spin(s=1 / 2, N=graph.n_nodes)
 
@@ -90,7 +87,6 @@ def get_net(hilbert, *, _args=None):
         refl_sym=_args.refl_sym,
         affine=_args.affine,
         nonlin=_args.nonlin,
-        skip_conn = args.skip_conn,
         no_phase=_args.no_phase,
         no_w_phase=_args.no_w_phase,
         cond_psi=_args.cond_psi,
@@ -104,7 +100,10 @@ def get_net(hilbert, *, _args=None):
         Net = MPS
     elif _args.net == "mps_rnn":
         if _args.net_dim == 1:
-            Net = MPSRNN1D
+            if _args.nonlin:
+                Net = MPSRNN1D_local
+            else:
+                Net = MPSRNN1D
         elif _args.net_dim == 2:
             Net = MPSRNN2D
         else:
@@ -141,7 +140,7 @@ def get_vstate(sampler, model, variables, *, _args=None, n_samples=None):
         n_samples = _args.batch_size
 
     if _args.local:
-        return MCState_local(
+        return nk.vqs.MCState(
         sampler,
         model,
         n_samples=n_samples,
@@ -285,7 +284,7 @@ def try_load_variables_init(model, *, _args=None):
         ("init.mpack", try_load_variables),
         ("init_rd.mpack", try_load_hierarchical),
         ("init_el.mpack", try_load_enlarge),
-        ("init.hdf5", try_load_itensors),
+        ("./../../init.hdf5", try_load_itensors),
     ]
 
     for basename, func in config:
@@ -294,7 +293,16 @@ def try_load_variables_init(model, *, _args=None):
         if func == try_load_variables:
             variables = func(filename)
         else:
-            variables = func(filename, model, _args)
+            if ("init.hdf5" in filename) & ("with_HI_10" in _args.full_out_dir):
+                print("Using enlarged MPS")
+                filename = _args.full_out_dir+"./../../init_from_L10.hdf5"
+                variables = func(filename, model, _args)
+            elif ("init.hdf5" in filename) & ("with_HI" in _args.full_out_dir):
+                print("Using full-size DMRG MPS")
+                filename = _args.full_out_dir+"./../../init.hdf5"
+                variables = func(filename, model, _args)
+            else:
+                variables = func(filename,model,_args)
         if variables is not None:
             print(f"Found {filename} and used {func}")
             variables = convert_variables(variables, _args)
@@ -333,8 +341,11 @@ def main():
     hilbert, H = get_ham()
 
     model = get_net(hilbert)
+    print("Got Net")
     variables = try_load_variables_init(model)
+    print("Loaded Variables")
     sampler = get_sampler(hilbert)
+    print("Got Sampler")
     vstate = get_vstate(sampler, model, variables)
     # print("n_params", tree_size_real_nonzero(vstate.parameters))
     print("n_params",vstate.n_parameters)
