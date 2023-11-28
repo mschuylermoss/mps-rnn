@@ -56,12 +56,6 @@ def get_parser():
         help="edge length of the lattice",
     )
     group.add_argument(
-        "--b",
-        type=int,
-        default=0,
-        help="enlarging factor (for initializing larger lattices)",
-    )
-    group.add_argument(
         "--h",
         type=float,
         default=0,
@@ -85,11 +79,6 @@ def get_parser():
         "--nonlin",
         action="store_true",
         help="use nonlinear activation function",
-    )
-    group.add_argument(
-        "--skip_conn",
-        action="store_true",
-        help="add skipped connection to update function",
     )
     group.add_argument(
         "--net_dim",
@@ -269,13 +258,11 @@ def get_ham_net_name(args):
         ham_name += "_h{h:g}"
     ham_name = ham_name.format(**vars(args))
 
-    net_name = "{net}_{net_dim}d_chi{bond_dim}"
+    net_name = "chi{bond_dim}/{net}_{net_dim}d"
     if args.affine:
         net_name += "_af"
     if args.nonlin:
         net_name += "_nl"
-    if args.skip_conn:
-        net_name += "_sc"
     if args.zero_mag:
         net_name += "_zm"
     if args.refl_sym:
