@@ -104,7 +104,7 @@ function get_afmheis_2d(J::Float64, lattice, sites)
     return H
 end
 
-function get_hamiltonian_2d(which_Ham::String, Lx::Int, Ly::Int, lattice, sites)
+function get_hamiltonian_2d(which_Ham::String, which_Latt::String, Lx::Int, Ly::Int, lattice, sites)
     
     N = Lx*Ly
     if isnothing(sites)
@@ -117,7 +117,7 @@ function get_hamiltonian_2d(which_Ham::String, Lx::Int, Ly::Int, lattice, sites)
         save_path = "../out/ising_fm_2d_L$(Lx)_h1"
     elseif which_Ham=="Heisenberg"
         H = get_afmheis_2d(+1.,lattice, sites)
-        if lattice == "Triangular"
+        if which_Latt == "Triangular"
             save_path = "../out/heis_tri_afm_2d_L$(Lx)"
         else
             save_path = "../out/heis_afm_2d_L$(Lx)"
