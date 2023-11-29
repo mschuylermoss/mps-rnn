@@ -299,12 +299,12 @@ def try_load_variables_init(model, *, _args=None):
                 variables = func(filename, model, _args)
             elif ("init.hdf5" in filename) & ("with_HI" in _args.full_out_dir):
                 print("Using full-size DMRG MPS")
-                filename = _args.full_out_dir+"./../../init.hdf5"
+                if _args.reorder_type=="snake":
+                    print("Using snaked DMRG MPS")
+                    filename = _args.full_out_dir+"./../../init_snaked.hdf5"
+                else:
+                    filename = _args.full_out_dir+"./../../init.hdf5"
                 variables = func(filename, model, _args)
-            # elif ("from_1D" in _args.full_out_dir):
-            #     print("Getting previous model")
-            #     filename = _args.full_out_dir+"./../../mps_rnn_1d_af_cp/out.mpack"
-            #     variables = try_load_hierarchical(filename,model,_args)
             else:
                 variables = func(filename,model,_args)
 
